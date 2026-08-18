@@ -3,6 +3,28 @@ import "./App.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+async function readErrorDetail(response) {
+  try {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await response.json();
+      if (body && body.detail) return body.detail;
+    }
+  } catch {
+    // response body wasn't valid JSON; fall through to status-based message
+  }
+  return null;
+}
+
+async function throwForResponse(response, fallbackByStatus) {
+  const detail = await readErrorDetail(response);
+  const message =
+    detail || fallbackByStatus[response.status] || `Request failed (${response.status})`;
+  const error = new Error(message);
+  error.status = response.status;
+  throw error;
+}
+
 async function uploadPic(file) {
   const formData = new FormData();
   formData.append("image", file);
@@ -13,7 +35,9 @@ async function uploadPic(file) {
   });
 
   if (!response.ok) {
-    throw new Error("Image upload failed");
+    await throwForResponse(response, {
+      400: "That image couldn't be uploaded. Please use a JPG or PNG under 5 MB.",
+    });
   }
 
   const contentType = response.headers.get("content-type") || "";
@@ -39,7 +63,11 @@ async function predict(file, uploadedImageUrl = "") {
   });
 
   if (!response.ok) {
-    throw new Error("Prediction request failed");
+    await throwForResponse(response, {
+      400: "That image couldn't be processed. Please use a JPG or PNG under 5 MB.",
+      422: "No face detected in the image. Try a clearer, front-facing photo.",
+      503: "The AI model isn't available on the server right now. Please try again later.",
+    });
   }
 
   return response.json();
@@ -183,7 +211,7 @@ const capturePhoto = () => {
         setUploadedImageUrl(imageUrl);
       }
     } catch (err) {
-      setError("Image was selected locally, but the backend upload failed.");
+      setError(err.message || "Image was selected locally, but the backend upload failed.");
     }
   };
   const handleDrop = async (e) => {
@@ -243,7 +271,7 @@ useEffect(() => {
       setUploadedImageUrl(imageUrl);
     }
   } catch (err) {
-    setError("Image was dropped locally, but the backend upload failed.");
+    setError(err.message || "Image was dropped locally, but the backend upload failed.");
   }
 };
 
