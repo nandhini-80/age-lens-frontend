@@ -36,6 +36,10 @@ export function UploadCard() {
 
           <p>Choose a clear, front-facing image for better prediction accuracy.</p>
         </div>
+        <p>
+            For best results, remove glasses if possible and use good lighting with
+            minimal blur.
+        </p>
 
         <div className="card-badge">JPG · PNG</div>
       </div>
